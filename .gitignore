@@ -1,0 +1,4 @@
+node_modules/
+.derivedData/
+*.log
+.DS_Store

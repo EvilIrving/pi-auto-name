@@ -1,0 +1,37 @@
+{
+  "name": "pi-session-rename",
+  "version": "0.1.0",
+  "description": "Name a pi session when it ends, from what the session actually did.",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "session",
+    "rename",
+    "title"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evilirving/pi-session-rename.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.86.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.86.0"
+  }
+}
