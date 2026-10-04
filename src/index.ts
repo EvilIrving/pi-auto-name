@@ -13,10 +13,10 @@
  * Triggers:
  *   /new, /resume, /fork  → name previousSessionFile
  *   starting pi           → catch up on recent sessions of this directory that have no name yet
+ *   /autoname             → regenerate the current session's name from the conversation, now
  *
- * Naming is only ever done by that automatic path. Naming the current session by hand is pi's
- * own `/name` (and `pi --name`), which this extension deliberately does not duplicate: a name
- * written that way is detected as foreign and left alone.
+ * Naming a session by hand stays pi's own `/name`. `/autoname` does not set a title, it asks the
+ * model for one — that is the one thing `/name` cannot do.
  *
  * Name format: `main title · subtitle`. The subtitle is optional — a session with only one
  * substantial task produces a main title alone. pi has a single `name` field and the built-in
@@ -101,6 +101,42 @@ export default function (pi: ExtensionAPI) {
 		if (!decision.write) return;
 		appendName(path, lastEntryId(entries), name, model);
 	}
+
+	/** Name the current session from its own conversation (the `/autoname` command). */
+	async function nameCurrentSession(ctx: ExtensionContext, signal: AbortSignal | undefined): Promise<void> {
+		const entries = ctx.sessionManager.getBranch() as unknown[];
+		const currentName = pi.getSessionName();
+		const access = modelAccess(ctx);
+		const cwd = ctx.cwd;
+		const conversation = buildConversation(entries);
+		if (!conversation.hasReply) {
+			state.lastNote = "no reply yet, not named";
+			return;
+		}
+		const { name } = await askModel(access, buildPrompt(conversation, cwd, currentName), signal);
+		const decision = decideName({ currentName, proposedName: name });
+		state.lastNote = decision.reason;
+		if (!decision.write) return;
+		try {
+			pi.setSessionName(name);
+		} catch (error) {
+			// The ctx went stale while the model was answering: this session has already been replaced,
+			// so there is no session left to rename.
+			state.lastNote = describeError(error);
+		}
+	}
+
+	pi.registerCommand("autoname", {
+		description: "Name this session from the conversation (the same naming the session gets when it ends)",
+		handler: async (_args, ctx) => {
+			try {
+				await nameCurrentSession(ctx, ctx.signal);
+			} catch (error) {
+				state.lastNote = describeError(error);
+			}
+			ctx.ui.notify(`Session: ${pi.getSessionName() ?? "(unnamed)"} — ${state.lastNote}`, "info");
+		},
+	});
 
 	pi.on("session_start", (event, ctx) => {
 		if (process.env.PI_RENAME_AUTO === "0") return;

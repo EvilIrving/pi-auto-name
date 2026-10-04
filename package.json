@@ -1,6 +1,6 @@
 {
   "name": "@light-cat/pi-auto-name",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Name a pi session when it ends, from what the session actually did.",
   "keywords": [
     "pi-package",
