@@ -1,9 +1,9 @@
-# pi-session-rename
+# pi-auto-name
 
 Name a pi session **when it ends**, from what the session actually did — so that ten days later you still recognize which run it was when you scan the session picker.
 
 ```bash
-pi install npm:pi-session-rename
+pi install npm:pi-auto-name
 ```
 
 ## Why not name it up front
@@ -18,8 +18,9 @@ So the name is written at exactly one moment: **the session ended and you starte
 | --- | --- |
 | `/new`, `/resume`, `/fork` | the session that just ended (a resumed session is renamed again) |
 | starting pi | recent sessions from this directory that ended without a name (last 24h, up to 3, never one this extension already named) |
-| `/rename <title>` | the current session, with your title (auto-naming then leaves it alone) |
-| `/rename` | the current session, regenerated from the conversation |
+
+Naming the current session by hand is pi's own `/name` (or `pi --name`). This extension does not
+add a command of its own: a name written that way is detected as foreign and never overwritten.
 
 Naming runs in the background and never blocks the UI: after `/new` the command palette is usable right away. pi awaits the whole `session_start` chain, so the handler returns immediately and does the model call detached.
 
@@ -45,7 +46,7 @@ Tried in order, first success wins:
 3. `models[]` in the config file (fallbacks in order)
 4. the session's own model — the default when nothing is configured, so it works out of the box
 
-Config file: `~/.pi/agent/config/session-rename.json`
+Config file: `~/.pi/agent/config/auto-name.json`
 
 ```json
 {
@@ -65,17 +66,17 @@ Any model pi can use is valid here. Credentials, base URLs and provider-specific
 
 ## Limits
 
-- **Names you wrote are never touched.** Anything set via `/name`, `pi --name`, the session picker (Ctrl+R), or `/rename <title>` is left alone.
+- **Names you wrote are never touched.** Anything set via `/name`, `pi --name`, or the session picker (Ctrl+R) is left alone.
 - **Short sessions are skipped**: fewer than 2 user turns and a first message under 200 characters.
 - **Failures are silent**: no model available, a timeout (120s), or an empty name all just leave the previous name in place, and never affect the session itself.
 - **Only finished session files are written**: two appended entries (`session_info` plus a marker entry), never the live session, never the conversation content.
-- **`PI_RENAME_AUTO=0`** disables all automatic naming (`/rename` still works).
+- **`PI_RENAME_AUTO=0`** disables automatic naming entirely.
 
 ## Layout
 
 ```
 src/
-├── index.ts     extension entry: session_start (background naming), /rename command, rename_session tool
+├── index.ts     extension entry: session_start, background naming of the session that just ended
 ├── name.ts      cleaning and truncation of a name (main title / subtitle, width, quotes, preambles)
 ├── session.ts   reading session material, building the prompt, writing the name into a finished session file
 └── model.ts     resolving candidate models and issuing the request through pi's model registry

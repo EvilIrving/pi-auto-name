@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { MAX_SUBTITLE_CHARS, MAX_TITLE_CHARS, NAME_SEPARATOR, clipPhrase } from "./name.ts";
 
 /** Names we wrote are recorded under this customType, which separates "ours" from "the user's". */
-export const ENTRY_TYPE = "session-rename";
+export const ENTRY_TYPE = "auto-name";
 /** Sessions this short are not worth naming (a single "hi" and a reply). */
 export const MIN_USER_TURNS = 2;
 export const MIN_FIRST_MESSAGE_CHARS = 200;

@@ -25,7 +25,7 @@ export type RenameConfig = {
 	thinking?: string;
 };
 
-export const CONFIG_FILE = "config/session-rename.json";
+export const CONFIG_FILE = "config/auto-name.json";
 export const MAX_OUTPUT_TOKENS = 4096;
 export const REQUEST_TIMEOUT_MS = 120_000;
 
@@ -33,7 +33,7 @@ const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high"] as const;
 type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
 export function configPath(): string {
-	return join(getAgentDir(), "config", "session-rename.json");
+	return join(getAgentDir(), "config", "auto-name.json");
 }
 
 export function describeError(error: unknown): string {

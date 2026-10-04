@@ -1,5 +1,5 @@
 /**
- * pi-session-rename — give a session its name when the session ends.
+ * pi-auto-name — give a session its name when the session ends.
  *
  * Why not name it at the start: sessions drift. Once the opening line ("pull it down for me")
  * becomes the name, the work that actually took hours is unfindable afterwards — and renaming
@@ -13,8 +13,10 @@
  * Triggers:
  *   /new, /resume, /fork  → name previousSessionFile
  *   starting pi           → catch up on recent sessions of this directory that have no name yet
- *   /rename <title>       → name the current session with your title (auto-naming stands down)
- *   /rename               → name the current session from the conversation, right now
+ *
+ * Naming is only ever done by that automatic path. Naming the current session by hand is pi's
+ * own `/name` (and `pi --name`), which this extension deliberately does not duplicate: a name
+ * written that way is detected as foreign and left alone.
  *
  * Name format: `main title · subtitle`. The subtitle is optional — a session with only one
  * substantial task produces a main title alone. pi has a single `name` field and the built-in
@@ -31,9 +33,8 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-import { cleanName, decideName, isForeignName } from "./name.ts";
-import { askModel, describeError, modelAccess, type ModelAccess } from "./model.ts";
+import { decideName, isForeignName } from "./name.ts";
+import { askModel, describeError, modelAccess } from "./model.ts";
 import {
 	appendName,
 	buildConversation,
@@ -56,7 +57,7 @@ export default function (pi: ExtensionAPI) {
 	 */
 	function setStatus(ui: ExtensionContext["ui"] | undefined, text: string | undefined): void {
 		try {
-			ui?.setStatus("session-rename", text);
+			ui?.setStatus("auto-name", text);
 		} catch {
 			// The TUI this status belonged to is gone; there is nothing left to update.
 		}
@@ -72,7 +73,7 @@ export default function (pi: ExtensionAPI) {
 
 	/** Name a session file that has already ended. We append to it; the current session is never touched. */
 	async function nameFinishedSession(
-		access: ModelAccess,
+		access: ReturnType<typeof modelAccess>,
 		path: string,
 		cwd: string,
 		options: { skipAutoNamed: boolean },
@@ -99,30 +100,6 @@ export default function (pi: ExtensionAPI) {
 		state.lastNote = `${path}: ${decision.reason}`;
 		if (!decision.write) return;
 		appendName(path, lastEntryId(entries), name, model);
-	}
-
-	/** Name the current session (used by /rename and by the rename_session tool). */
-	async function nameCurrentSession(ctx: ExtensionContext, signal: AbortSignal | undefined): Promise<void> {
-		const entries = ctx.sessionManager.getBranch() as unknown[];
-		const currentName = pi.getSessionName();
-		const access = modelAccess(ctx);
-		const cwd = ctx.cwd;
-		const conversation = buildConversation(entries);
-		if (!conversation.hasReply) {
-			state.lastNote = "no reply yet, not named";
-			return;
-		}
-		const { name } = await askModel(access, buildPrompt(conversation, cwd, currentName), signal);
-		const decision = decideName({ currentName, proposedName: name });
-		state.lastNote = decision.reason;
-		if (!decision.write) return;
-		try {
-			pi.setSessionName(name);
-		} catch (error) {
-			// The ctx went stale while the model was answering: this session has already been replaced,
-			// so there is no session left to rename.
-			state.lastNote = describeError(error);
-		}
 	}
 
 	pi.on("session_start", (event, ctx) => {
@@ -174,58 +151,5 @@ export default function (pi: ExtensionAPI) {
 				setStatus(ui, undefined);
 			}
 		})();
-	});
-
-	pi.registerCommand("rename", {
-		description: "Rename this session: /rename <title>, or /rename to name it from the conversation",
-		handler: async (args, ctx) => {
-			const literal = args.trim();
-			if (literal) {
-				const name = cleanName(literal) || literal;
-				pi.setSessionName(name);
-				ctx.ui.notify(`Session: ${name} (manual name, auto-naming will leave it alone)`, "info");
-				return;
-			}
-			try {
-				await nameCurrentSession(ctx, ctx.signal);
-			} catch (error) {
-				state.lastNote = describeError(error);
-			}
-			ctx.ui.notify(`Session: ${pi.getSessionName() ?? "(unnamed)"} — ${state.lastNote}`, "info");
-		},
-	});
-
-	pi.registerTool({
-		name: "rename_session",
-		label: "Rename Session",
-		description:
-			"Rename the current session. Pass name to set it exactly (this hands naming back to the user), or omit name to name it from the conversation.",
-		promptSnippet: "Rename the current session (names it from the conversation when name is omitted)",
-		promptGuidelines: [
-			"Use rename_session only when the user explicitly asks to name or rename the current session.",
-			"Session names are otherwise set automatically when a session ends; do not rename on your own initiative.",
-		],
-		parameters: Type.Object({
-			name: Type.Optional(
-				Type.String({ description: "Exact title to set. Omit to generate one from the conversation." }),
-			),
-		}),
-		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-			const literal = params.name?.trim();
-			if (literal) {
-				const name = cleanName(literal) || literal;
-				pi.setSessionName(name);
-				return {
-					content: [{ type: "text" as const, text: `Session renamed to "${name}".` }],
-					details: { name, manual: true },
-				};
-			}
-			await nameCurrentSession(ctx, signal);
-			const name = pi.getSessionName();
-			return {
-				content: [{ type: "text" as const, text: `Session renamed to "${name ?? ""}".` }],
-				details: { name, manual: false, note: state.lastNote },
-			};
-		},
 	});
 }
