@@ -1,13 +1,24 @@
 # pi-auto-name
 
-**You have 400 sessions and no idea which one is which.**
+**You want to go back to something. You cannot find it.**
 
-pi shows the first message of a session in the picker. That is fine for the session you are in, and
-useless for the session you were in last month — because the message that opens a session is almost
-never what the session turned out to be. You opened with "pull it down for me" and spent six hours
-splitting the CI workflow. Later, scanning the list, all you see is "pull it down for me".
+That is the whole problem. Two weeks ago you spent a long session doing something real — and now
+you want it again. You open the session picker and start scrolling. Every row shows the first
+thing you typed:
 
-This extension reads the session once it is over and gives it a name worth keeping:
+```
+resume the thing I was doing
+the build is broken again
+pull it down for me
+look at this
+wait, one more thing
+```
+
+None of these is what the session was. You scroll, you guess, you open three sessions and close
+them again — and eventually you give up and redo the work.
+
+This extension gives every session a name that says what it was, so that when you come back
+two weeks later you find it in one look:
 
 ```
 CI workflow split · debug non-git repo
@@ -18,35 +29,72 @@ voice waveform recording · interruption handling
 pi install npm:@light-cat/pi-auto-name
 ```
 
-No configuration. It works out of the box and never blocks anything.
+No configuration. And you never manage these names: no naming, no renaming, no remembering to name
+anything. You just use pi, and next time the list is findable.
 
 ## Why the name is written at the end
 
-Most auto-namers name a session from its first exchange, then keep re-naming it as the conversation
-moves. Both halves of that are wrong for this problem.
+Naming a session is not the goal. **Finding the session again is the goal** — and for that, the name
+has to match what the session turned out to be, not how it started.
 
-**Naming early means naming the wrong thing.** At the first exchange, the only material is the
-opening line — the same thing the picker already shows you. The interesting part of a long session
-is in the middle, and it does not exist yet.
+That is a question about *timing*, and it has one answer:
 
-**Naming continuously means the list flickers.** A name that changes every few minutes is not
-something you can recognize; it is something you re-read every time. Worse, it writes session
-metadata on a schedule, so the picker is never quite settled.
+**Name it at the start, and you have named the wrong thing.** At the first exchange there is nothing
+else on disk. The only material is the opening line — which the picker is already showing you. You
+have spent a model call to rename "pull it down for me" to "pulling it down". The hours that made
+the session worth finding again have not happened yet.
 
-So the name is written at exactly one moment: **the session ended and you started the next one.**
-Everything is already on disk by then, so the model reads the whole session once — beginning, the
-part that took hours, and the wrap-up — and produces one name that will still make sense in ten
-days. That is the entire design.
+**Name it continuously, and the name never settles.** A name that changes every few minutes is not
+something you can recognize when you come back — it is something you have to re-read every time. And
+because those renames keep writing to the session file, the list is never quite still.
+
+**Name it at the end, and you finally have something to name.** By then the entire session is on
+disk: what you opened with, the part that actually ate the hours, and how it finished. The model
+reads all of it once and writes one name — the kind you can still recognize weeks later, because it
+describes what the session *was*, not what it *seemed to be about* on the first line.
+
+So that is the only time this extension writes: **the session ended, and you moved on to the next
+one.** Nothing else triggers it. No timers, no loop, no renaming as you work.
+
+And your own names always win. If you ever `/name` a session by hand, this extension notices and
+leaves it alone from then on.
 
 ## What you get
 
-| When | What happens |
-| --- | --- |
-| You run `/new`, `/resume`, or `/fork` | The session you just left gets named. A resumed session is re-named, because it grew since last time. |
-| You start pi | Sessions from this directory that ended in the last 24h without a name get caught up — at most 3, most recent first. Covers the times pi was killed instead of exited. |
-| You run `/autoname` | The current session is named right now, from its conversation so far. |
+| When | What happens | Why you care |
+| --- | --- | --- |
+| You run `/new`, `/resume`, or `/fork` | The session you just left gets named | The session you are about to hunt for is named before you need it |
+| You start pi | Sessions from this directory that ended in the last 24h without a name get caught up — at most 3, most recent first | Covers the times pi was killed instead of exited, so nothing slips through |
+| You run `/autoname` | The current session is named right now, from its conversation so far | When you want to name something before leaving, or the name is not what you would have picked |
 
-Nothing else. No timers, no background loop, no rename on a schedule.
+## What a name looks like, and why
+
+The test for a name is not "is it accurate". It is **"can I find this again in three weeks"** — and
+that decides the shape:
+
+```
+main title · subtitle
+```
+
+Both halves live in pi's single `name` field, because the picker shows one line per session. Two
+separate fields would not display anywhere.
+
+**The main title (≤14 characters) is what the session mostly did.** Not what it opened with. If the
+session switched tasks, it is the one that ate the time — the opening warm-up and the closing
+wrap-up are explicitly excluded. And it has to be concrete: the model is told that "code
+discussion", "new session" and "chatting" are not names, and that it may never quote you.
+
+**The subtitle (≤20 characters) is optional, and stays absent when there is nothing to say.** It
+appears only when the session genuinely contained a second substantial task — in Chinese it is
+prefixed with 「另」. It is never padded with the main task's outcome or a restatement. Most sessions
+should have a title and nothing else.
+
+The reason for the two levels is how you scan: you read the main title, and the subtitle is what
+gets cut when the column is narrow. So the part that has to survive goes first, always.
+
+**Names are written in the language the session used**, and Chinese/Japanese titles are measured in
+display cells rather than characters — a CJK title cuts at 14 characters, a Latin one at 28, so both
+occupy about the same width in the picker and neither looks broken next to the other.
 
 ## `/autoname` and pi's own `/name`
 
@@ -55,38 +103,11 @@ They do different jobs and do not compete:
 - **`/name My title`** — pi's built-in. *You* write the title. Use it when you already know what to
   call the session.
 - **`/autoname`** — this extension. The *model* reads the conversation and writes the title. Use it
-  when you want a name now instead of waiting for the session to end.
+  when the name is not what you would have picked, or you want it before the session ends.
 
 **A name you wrote is never overwritten.** Anything set through `/name`, `pi --name`, or the session
-picker is detected as yours, and both paths back off permanently. If you name a session by hand,
-this extension will never touch it again.
-
-## What a name looks like, and why
-
-```
-main title · subtitle
-```
-
-Both halves live in pi's single `name` field — the picker shows one line per session, so splitting
-into two fields would not display anywhere.
-
-**The main title (≤14 characters) is what the session mostly did.** Not what it opened with. If the
-session switched tasks, it is the one that ate the time. The model is told explicitly that the
-opening warm-up and the closing wrap-up do not count, and that "code discussion" / "new session" /
-"chatting" are not names.
-
-**The subtitle (≤20 characters) is optional, and stays absent when there is nothing to say.** It
-appears only when the session genuinely contained a second substantial task — in Chinese it is
-prefixed with 「另」. The prompt forbids padding it with the main task's outcome or a restatement.
-Most sessions should have a title and nothing else.
-
-The two-level split exists because of how you actually scan the list: the main title is what you
-read, and the subtitle is what gets sacrificed when the column is too narrow. So the important word
-goes first, always.
-
-**Names are written in the language the session used**, and Chinese/Japanese titles are measured in
-display cells, not characters — a CJK title cuts at 14 characters, a Latin one at 28, so both occupy
-roughly the same width in the picker.
+picker is recognized as yours, and this extension backs off permanently — the one name in your list
+you really care about is safe.
 
 ## How it works
 
