@@ -33,7 +33,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { cleanName, decideName, isForeignName } from "./name.ts";
-import { askModel, describeError } from "./model.ts";
+import { askModel, describeError, modelAccess, type ModelAccess } from "./model.ts";
 import {
 	appendName,
 	buildConversation,
@@ -49,9 +49,30 @@ import {
 export default function (pi: ExtensionAPI) {
 	const state = { busy: false, lastNote: "(not run yet)" };
 
+	/**
+	 * Cosmetic footer status. It is written after the model call, by which time pi may already have
+	 * invalidated the session this status belonged to: a stale handle must never turn a cosmetic
+	 * update into an uncaught error inside a detached task.
+	 */
+	function setStatus(ui: ExtensionContext["ui"] | undefined, text: string | undefined): void {
+		try {
+			ui?.setStatus("session-rename", text);
+		} catch {
+			// The TUI this status belonged to is gone; there is nothing left to update.
+		}
+	}
+
+	function notifyFailure(ui: ExtensionContext["ui"] | undefined): void {
+		try {
+			ui?.notify(`Session rename failed: ${state.lastNote}`, "warning");
+		} catch {
+			// Same: the session this job belonged to is gone, so there is nobody left to notify.
+		}
+	}
+
 	/** Name a session file that has already ended. We append to it; the current session is never touched. */
 	async function nameFinishedSession(
-		ctx: ExtensionContext,
+		access: ModelAccess,
 		path: string,
 		cwd: string,
 		options: { skipAutoNamed: boolean },
@@ -73,7 +94,7 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 
-		const { name, model } = await askModel(ctx, buildPrompt(conversation, cwd, currentName));
+		const { name, model } = await askModel(access, buildPrompt(conversation, cwd, currentName));
 		const decision = decideName({ currentName, proposedName: name });
 		state.lastNote = `${path}: ${decision.reason}`;
 		if (!decision.write) return;
@@ -84,16 +105,24 @@ export default function (pi: ExtensionAPI) {
 	async function nameCurrentSession(ctx: ExtensionContext, signal: AbortSignal | undefined): Promise<void> {
 		const entries = ctx.sessionManager.getBranch() as unknown[];
 		const currentName = pi.getSessionName();
+		const access = modelAccess(ctx);
+		const cwd = ctx.cwd;
 		const conversation = buildConversation(entries);
 		if (!conversation.hasReply) {
 			state.lastNote = "no reply yet, not named";
 			return;
 		}
-		const { name } = await askModel(ctx, buildPrompt(conversation, ctx.cwd, currentName), signal);
+		const { name } = await askModel(access, buildPrompt(conversation, cwd, currentName), signal);
 		const decision = decideName({ currentName, proposedName: name });
 		state.lastNote = decision.reason;
 		if (!decision.write) return;
-		pi.setSessionName(name);
+		try {
+			pi.setSessionName(name);
+		} catch (error) {
+			// The ctx went stale while the model was answering: this session has already been replaced,
+			// so there is no session left to rename.
+			state.lastNote = describeError(error);
+		}
 	}
 
 	pi.on("session_start", (event, ctx) => {
@@ -119,20 +148,30 @@ export default function (pi: ExtensionAPI) {
 		// case three candidates at a 120s timeout each — and waiting for it here makes the new session
 		// unusable in the meantime (measured: right after /new, typing `/` did not open the command
 		// palette). So return immediately and let naming continue in the background.
+		//
+		// Everything that job needs is read here, while this ctx is still alive: pi invalidates the ctx
+		// of a session as soon as the session is replaced (/new, /fork, /resume) or extensions reload
+		// (/reload), and every field of it throws from then on — including `model` and `modelRegistry`.
+		// Touching ctx after the await is what crashed pi once (crashes.json 2026-09-23: `get hasUI` on
+		// a stale ctx, thrown inside this detached task where nothing catches it).
+		const access = modelAccess(ctx);
+		const cwd = ctx.cwd;
+		const ui = ctx.hasUI ? ctx.ui : undefined;
+
 		void (async () => {
 			state.busy = true;
-			if (ctx.hasUI) ctx.ui.setStatus("session-rename", "naming previous session…");
+			setStatus(ui, "naming previous session…");
 			try {
 				for (const path of targets.paths) {
-					await nameFinishedSession(ctx, path, ctx.cwd, { skipAutoNamed: targets.skipAutoNamed });
+					await nameFinishedSession(access, path, cwd, { skipAutoNamed: targets.skipAutoNamed });
 				}
 			} catch (error) {
 				state.lastNote = describeError(error);
 				// A failed automatic rename should not be completely silent: silence is only right on success.
-				if (ctx.hasUI) ctx.ui.notify(`Session rename failed: ${state.lastNote}`, "warning");
+				notifyFailure(ui);
 			} finally {
 				state.busy = false;
-				if (ctx.hasUI) ctx.ui.setStatus("session-rename", undefined);
+				setStatus(ui, undefined);
 			}
 		})();
 	});

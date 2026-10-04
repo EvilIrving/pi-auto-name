@@ -1,9 +1,9 @@
 /**
  * Which model names the session.
  *
- * This module only decides the candidate list; the request itself goes through
- * `ctx.modelRegistry`, so credentials, base URLs and per-provider request quirks stay pi's
- * business. We never read `models.json` or `auth.json`, and no provider is hardcoded.
+ * This module only decides the candidate list; the request itself goes through the model registry
+ * taken from the ctx (see `ModelAccess`), so credentials, base URLs and per-provider request quirks
+ * stay pi's business. We never read `models.json` or `auth.json`, and no provider is hardcoded.
  *
  * Order (first success wins):
  *   PI_RENAME_MODEL → config `model` → config `models[]` → the session's own model
@@ -93,6 +93,23 @@ function withDeadline(signal: AbortSignal | undefined, ms: number): AbortSignal 
 
 type RegistryModel = NonNullable<ExtensionContext["model"]>;
 
+/**
+ * The two things a model call needs, read from a ctx **while that ctx is still alive**.
+ *
+ * pi invalidates an extension ctx as soon as the session is replaced (/new, /fork, /resume) or
+ * extensions reload (/reload); from then on every field of that ctx — `model` and `modelRegistry`
+ * included — throws. Naming the previous session runs for seconds after /new returns, so the job
+ * must carry these values instead of holding the ctx across the await.
+ */
+export type ModelAccess = {
+	registry: ExtensionContext["modelRegistry"];
+	sessionModel: ExtensionContext["model"] | undefined;
+};
+
+export function modelAccess(ctx: ExtensionContext): ModelAccess {
+	return { registry: ctx.modelRegistry, sessionModel: ctx.model };
+}
+
 function textOf(content: unknown): string {
 	if (!Array.isArray(content)) return "";
 	return content
@@ -105,18 +122,18 @@ function textOf(content: unknown): string {
 
 /** Try each candidate in order and return the first name that comes out usable. */
 export async function askModel(
-	ctx: ExtensionContext,
+	access: ModelAccess,
 	prompt: string,
 	signal?: AbortSignal,
 ): Promise<{ name: string; model: string }> {
 	const config = readConfig();
 	const refs = resolveModelRefs(config);
-	const sessionModel = ctx.model as RegistryModel | undefined;
+	const sessionModel = access.sessionModel as RegistryModel | undefined;
 
 	type Candidate = { label: string; model: RegistryModel | undefined };
 	const candidates: Candidate[] =
 		refs.length > 0
-			? refs.map((ref) => ({ label: `${ref.provider}/${ref.model}`, model: ctx.modelRegistry.find(ref.provider, ref.model) }))
+			? refs.map((ref) => ({ label: `${ref.provider}/${ref.model}`, model: access.registry.find(ref.provider, ref.model) }))
 			: [{ label: sessionModel ? `${sessionModel.provider}/${sessionModel.id}` : "session model", model: sessionModel }];
 
 	const thinking = config.thinking as ThinkingLevel | undefined;
@@ -128,7 +145,7 @@ export async function askModel(
 			continue;
 		}
 		try {
-			const response = await ctx.modelRegistry
+			const response = await access.registry
 				.streamSimple(
 					candidate.model,
 					{
