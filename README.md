@@ -3,7 +3,7 @@
 Name a pi session **when it ends**, from what the session actually did — so that ten days later you still recognize which run it was when you scan the session picker.
 
 ```bash
-pi install npm:pi-auto-name
+pi install npm:@light-cat/pi-auto-name
 ```
 
 ## Why not name it up front

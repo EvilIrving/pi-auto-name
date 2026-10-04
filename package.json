@@ -1,5 +1,5 @@
 {
-  "name": "pi-auto-name",
+  "name": "@light-cat/pi-auto-name",
   "version": "0.1.0",
   "description": "Name a pi session when it ends, from what the session actually did.",
   "keywords": [
@@ -24,6 +24,10 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/evilirving/pi-auto-name.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   },
   "engines": {
     "node": ">=22"
