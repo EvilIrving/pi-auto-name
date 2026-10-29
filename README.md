@@ -1,5 +1,7 @@
 # pi-auto-name
 
+English | [简体中文](README_CN.md)
+
 pi's session list shows the first message of each session. When you want to find the session you
 ran two weeks ago, this is what you see:
 
@@ -51,7 +53,7 @@ set yourself with `/name` is never overwritten.
 | --- | --- |
 | `/new`, `/resume`, `/fork` | Names the session you just left. A resumed session is named again, because it grew. |
 | Starting pi | Names recent sessions in this directory that ended in the last 24 hours without a name, at most 3. This covers the times pi was killed instead of exited. |
-| `/autoname` | Names the current session now, from the conversation so far. |
+| `/autoname [focus]` | Names the current session now, from the conversation so far. An optional focus argument guides the title (e.g. `/autoname focus on backend`). |
 
 ## `/autoname` and pi's own `/name`
 
