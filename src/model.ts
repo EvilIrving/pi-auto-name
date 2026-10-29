@@ -136,7 +136,7 @@ export async function askModel(
 			? refs.map((ref) => ({ label: `${ref.provider}/${ref.model}`, model: access.registry.find(ref.provider, ref.model) }))
 			: [{ label: sessionModel ? `${sessionModel.provider}/${sessionModel.id}` : "session model", model: sessionModel }];
 
-	const thinking = config.thinking as ThinkingLevel | undefined;
+	const thinking = (config.thinking as ThinkingLevel | undefined) ?? "off";
 	const failures: string[] = [];
 
 	for (const candidate of candidates) {
@@ -160,7 +160,7 @@ export async function askModel(
 						// gateway answers 400 MissingSessionID without it). pi expresses this as `sessionId`;
 						// turning it into the provider's header is the provider's job.
 						sessionId: randomUUID(),
-						...(thinking && thinking !== "off" ? { reasoning: thinking } : {}),
+						...(thinking !== "off" ? { reasoning: thinking } : {}),
 					},
 				)
 				.result();

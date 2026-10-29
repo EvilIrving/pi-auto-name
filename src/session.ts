@@ -121,7 +121,12 @@ export function buildConversation(entries: unknown[]): Conversation {
 	};
 }
 
-export function buildPrompt(conversation: Conversation, cwd: string, currentName: string | undefined): string {
+export function buildPrompt(
+	conversation: Conversation,
+	cwd: string,
+	currentName: string | undefined,
+	userPreference?: string,
+): string {
 	const lines = [
 		"You name a coding session that just ended. The name has exactly one job: ten days from now,",
 		"when the user scans their session list, they recognize what that session did and can find it again.",
@@ -142,6 +147,9 @@ export function buildPrompt(conversation: Conversation, cwd: string, currentName
 		"- Write in the language the session mainly used. Noun phrases, no trailing punctuation.",
 	];
 	lines.push(`Working directory: ${cwd}`, `Current name: ${currentName ?? "(none yet)"}`);
+	if (userPreference && userPreference.trim()) {
+		lines.push(`User focus / preference: ${userPreference.trim()}`);
+	}
 	if (conversation.tools.length > 0) lines.push(`Tools used: ${conversation.tools.join(", ")}`);
 	lines.push(
 		"",
@@ -156,10 +164,18 @@ export function buildPrompt(conversation: Conversation, cwd: string, currentName
 
 export function readEntries(path: string): SessionEntry[] {
 	try {
-		return readFileSync(path, "utf8")
-			.split("\n")
-			.filter((line) => line.trim())
-			.map((line) => JSON.parse(line) as SessionEntry);
+		const lines = readFileSync(path, "utf8").split("\n");
+		const entries: SessionEntry[] = [];
+		for (const line of lines) {
+			const trimmed = line.trim();
+			if (!trimmed) continue;
+			try {
+				entries.push(JSON.parse(trimmed) as SessionEntry);
+			} catch {
+				// Skip corrupted or half-written line instead of dropping the entire session.
+			}
+		}
+		return entries;
 	} catch {
 		return [];
 	}

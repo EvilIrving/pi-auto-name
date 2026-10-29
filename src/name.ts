@@ -33,8 +33,8 @@ export function clipPhrase(text: string, maxChars: number): string {
 		width += next;
 		used += character.length;
 	}
-	if (used >= trimmed.length) return trimmed;
-	return trimmed.slice(0, used).replace(/[。，、,.;；:：\s]+$/, "").trim();
+	const base = used >= trimmed.length ? trimmed : trimmed.slice(0, used);
+	return base.replace(/[。，、,.;；:：\s]+$/, "").trim();
 }
 
 /**
@@ -53,11 +53,11 @@ export function cleanName(raw: string): string {
 	if (!line) return "";
 
 	const text = line
-		.replace(/^[#*>\-\s]+/, "")
-		.replace(/^(?:session\s+)?(?:title|name|标题|名称|会话名称)\s*[:：\-]\s*/i, "")
+		.replace(/^[*_~`#>\-\s]+/, "")
+		.replace(/^(?:session\s+)?(?:title|name|标题|名称|会话名称)[*_~`\s]*[:：\-][*_~`\s]*/i, "")
 		// Any short "<something>:" prefix is a preamble ("Sure:", "The result is:").
 		.replace(/^[^:：]{0,6}[:：]\s*(?=\S{2,})/, "")
-		.replace(/^["'“”「」『』【】[\]]+|["'“”「」『』【】[\]]+$/g, "")
+		.replace(/^["'“”「」『』【】[\]*`]+|["'“”「」『』【】[\]*`]+$/g, "")
 		.replace(/[。，、,.;；:：!！?？]+$/, "")
 		.trim();
 	if (text.length < 2) return "";
