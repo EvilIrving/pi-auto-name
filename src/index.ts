@@ -103,7 +103,11 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	/** Name the current session from its own conversation (the `/autoname` command). */
-	async function nameCurrentSession(ctx: ExtensionContext, signal: AbortSignal | undefined): Promise<void> {
+	async function nameCurrentSession(
+		ctx: ExtensionContext,
+		signal: AbortSignal | undefined,
+		preference?: string,
+	): Promise<void> {
 		const entries = ctx.sessionManager.getBranch() as unknown[];
 		const currentName = pi.getSessionName();
 		const access = modelAccess(ctx);
@@ -113,7 +117,7 @@ export default function (pi: ExtensionAPI) {
 			state.lastNote = "no reply yet, not named";
 			return;
 		}
-		const { name } = await askModel(access, buildPrompt(conversation, cwd, currentName), signal);
+		const { name } = await askModel(access, buildPrompt(conversation, cwd, currentName, preference), signal);
 		const decision = decideName({ currentName, proposedName: name });
 		state.lastNote = decision.reason;
 		if (!decision.write) return;
@@ -127,10 +131,11 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	pi.registerCommand("autoname", {
-		description: "Name this session from the conversation (the same naming the session gets when it ends)",
-		handler: async (_args, ctx) => {
+		description: "Name this session from the conversation, optionally guided by a focus hint",
+		handler: async (args, ctx) => {
 			try {
-				await nameCurrentSession(ctx, ctx.signal);
+				const preference = typeof args === "string" && args.trim().length > 0 ? args.trim() : undefined;
+				await nameCurrentSession(ctx, ctx.signal, preference);
 			} catch (error) {
 				state.lastNote = describeError(error);
 			}
