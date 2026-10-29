@@ -12,6 +12,8 @@
     "title"
   ],
   "type": "module",
+  "main": "./src/index.ts",
+  "author": "EvilIrving <dong.yy1916@gmail.com>",
   "license": "MIT",
   "files": [
     "src",

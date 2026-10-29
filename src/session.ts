@@ -243,7 +243,15 @@ export function recentOtherSessions(dir: string | undefined, exclude: string | u
 			.filter((entry) => entry.endsWith(".jsonl"))
 			.map((entry) => join(dir, entry))
 			.filter((path) => path !== exclude)
-			.map((path) => ({ path, modified: statSync(path).mtimeMs }))
+			.map((path) => {
+				try {
+					const st = statSync(path, { throwIfNoEntry: false });
+					return st ? { path, modified: st.mtimeMs } : undefined;
+				} catch {
+					return undefined;
+				}
+			})
+			.filter((file): file is { path: string; modified: number } => Boolean(file))
 			.filter((file) => now - file.modified < CATCH_UP_WINDOW_MS)
 			.sort((left, right) => right.modified - left.modified)
 			.slice(0, 3)
