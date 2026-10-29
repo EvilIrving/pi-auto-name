@@ -4,6 +4,8 @@
   "description": "Name a pi session when it ends, from what the session actually did.",
   "keywords": [
     "pi-package",
+    "pi-extension",
+    "pi-coding-agent",
     "pi",
     "session",
     "name",
@@ -14,6 +16,7 @@
   "files": [
     "src",
     "README.md",
+    "README_CN.md",
     "LICENSE"
   ],
   "pi": {
@@ -25,6 +28,10 @@
     "type": "git",
     "url": "git+https://github.com/evilirving/pi-auto-name.git"
   },
+  "bugs": {
+    "url": "https://github.com/evilirving/pi-auto-name/issues"
+  },
+  "homepage": "https://github.com/evilirving/pi-auto-name#readme",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
@@ -32,10 +39,17 @@
   "engines": {
     "node": ">=22"
   },
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.json --pretty false",
+    "prepack": "npm test && npm run typecheck"
+  },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": ">=1.0.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^1.0.0"
+    "@earendil-works/pi-coding-agent": "^1.4.0",
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.3"
   }
 }
